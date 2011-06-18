@@ -1565,18 +1565,33 @@ var Page = (function() {
         compile: function(gfx, fonts) {
             if (!this.code) {
                 var xref = this.xref;
-                var content = xref.fetchIfRef(this.content);
+                var content;
                 var resources = xref.fetchIfRef(this.resources);
-                this.code = gfx.compile(content, xref, resources, fonts);
+                if (IsArray(this.content)) {
+                    // the content is an array
+                    var i, n = this.content.length, compiledItems = [];
+                    for (i = 0; i < n; ++i) {
+                        content = xref.fetchIfRef(this.content[i]);
+                        compiledItems.push(gfx.compile(content, xref, resources, fonts));
+                    }
+                    this.code = function(gfx) {
+                        var i, n = compiledItems.length;
+                        for (i = 0; i < n; ++i) {
+                            compiledItems[i](gfx);
+                        }
+                    };
+                } else {
+                    content = xref.fetchIfRef(this.content);
+                    this.code = gfx.compile(content, xref, resources, fonts);
+                }
             }
         },
         display: function(gfx) {
             var xref = this.xref;
-            var content = xref.fetchIfRef(this.content);
             var resources = xref.fetchIfRef(this.resources);
             var mediaBox = xref.fetchIfRef(this.mediaBox);
-            assertWellFormed(IsStream(content) && IsDict(resources),
-                             "invalid page content or resources");
+            assertWellFormed(this.code instanceof Function, "page is not compiled");
+            assertWellFormed(IsDict(resources), "invalid page resources");
             gfx.beginDrawing({ x: mediaBox[0], y: mediaBox[1],
                                width: mediaBox[2] - mediaBox[0],
                                height: mediaBox[3] - mediaBox[1] });
