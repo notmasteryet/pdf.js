@@ -307,7 +307,7 @@ var FlateStream = (function() {
         getByte: function() {
             var bufferLength = this.bufferLength;
             var pos = this.pos;
-            if (bufferLength == pos) {
+            if (bufferLength <= pos) {
                 if (this.eof)
                     return;
                 this.readBlock();
@@ -332,7 +332,7 @@ var FlateStream = (function() {
         lookChar: function() {
             var bufferLength = this.bufferLength;
             var pos = this.pos;
-            if (bufferLength == pos) {
+            if (bufferLength <= pos) {
                 if (this.eof)
                     return;
                 this.readBlock();
@@ -597,7 +597,7 @@ var PredictorStream = (function() {
 
 var DecryptStream = (function() {
     function constructor(str, fileKey, encAlgorithm, keyLength) {
-        // TODO
+        error("TODO decrypt");
     }
 
     constructor.prototype = Stream.prototype;
@@ -1484,11 +1484,12 @@ var XRef = (function() {
 
             e = this.getEntry(num);
             var gen = ref.gen;
+            var stream, parser;
             if (e.uncompressed) {
                 if (e.gen != gen)
                     throw("inconsistent generation in XRef");
-                var stream = this.stream.makeSubStream(e.offset);
-                var parser = new Parser(new Lexer(stream), true, this);
+                stream = this.stream.makeSubStream(e.offset);
+                parser = new Parser(new Lexer(stream), true, this);
                 var obj1 = parser.getObj();
                 var obj2 = parser.getObj();
                 var obj3 = parser.getObj();
@@ -1512,7 +1513,39 @@ var XRef = (function() {
                     this.cache[num] = e;
                 return e;
             }
-            error("compressed entry");
+            // compressed entry
+            stream = this.fetch({num:e.offset, gen:0});
+            if (!IsStream(stream))
+                error("bad ObjStm stream");
+            var first = stream.parameters.get("First");
+            var n = stream.parameters.get("N");
+            if (!IsInt(first) || !IsInt(n)) {
+                error("invalid first and n parameters for ObjStm stream");
+            }
+            parser = new Parser(new Lexer(stream), false);
+            var i, entries = [], nums = [];
+            // read the object numbers to populate cache
+            for (i = 0; i < n; ++i) {
+                var num = parser.getObj();
+                if (!IsInt(num)) {
+                    error("invalid object number in the ObjStm stream");
+                }
+                nums.push(num);
+                var offset = parser.getObj();
+                if (!IsInt(offset)) {
+                    error("invalid object offset in the ObjStm stream");
+                }
+            }
+            // read stream objects for cache
+            for (i = 0; i < n; ++i) {
+                entries.push(parser.getObj());
+                this.cache[nums[i]] = entries[i];
+            }
+            e = entries[e.gen];
+            if (!e) {
+                error("bad XRef entry for compressed object");
+            }
+            return e;
         },
         getCatalogObj: function() {
             return this.fetch(this.root);
