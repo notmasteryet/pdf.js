@@ -161,14 +161,11 @@ var PDFViewer = {
 
     if (div && !div.hasChildNodes()) {
       var page = PDFViewer.pdf.getPage(num);
-      var canvas = document.createElement('canvas');
+      var canvas = new SvgCanvas(div);
 
       canvas.id = 'page' + num;
-      canvas.mozOpaque = true;
-
       canvas.width = PDFViewer.pageWidth(page);
       canvas.height = PDFViewer.pageHeight(page);
-      div.appendChild(canvas);
 
       var ctx = canvas.getContext('2d');
       ctx.save();
