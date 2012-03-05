@@ -2563,10 +2563,10 @@ var Type1Parser = function type1Parser() {
       '0': null, // dotsection
 
       // [vh]stem3 are Type1 only and Type2 supports [vh]stem with multiple
-      // parameters, so instead of returning [vh]stem3 take a shortcut and
-      // return [vhstem] instead.
-      '1': 'vstem',
-      '2': 'hstem',
+      // parameters, those will be replaced by [vh]stem and parameters must be
+      // re-calculated.
+      '1': 'vstem3',
+      '2': 'hstem3',
 
       // Type1 only command with command not (yet) built-in ,throw an error
       '6': -1, // seac
@@ -2641,9 +2641,21 @@ var Type1Parser = function type1Parser() {
             // pop or setcurrentpoint commands can be ignored
             // since we are not doing callothersubr
             continue;
-          } else if (!kHintingEnabled && (escape == 1 || escape == 2)) {
-            charstring.push('drop', 'drop', 'drop', 'drop', 'drop', 'drop');
-            continue;
+          } else if (escape == 1 || escape == 2) { // [vh]stem3
+            if (!kHintingEnabled) {
+              charstring.push('drop', 'drop', 'drop', 'drop', 'drop', 'drop');
+              continue;
+            } else {
+              // recalculating arguments: in stack [x0 dx0 x1 dx1 x2 dx2]
+              // has to be [x dx {dxa dxb}*]
+              charstring.push(5, 'index', 5, 'index', 'add', 4, 'index', 'sub',
+                3, 'index'); // adds to stack [dxa1 dxb1]
+              charstring.push(5, 'index', 5, 'index', 'add', 4, 'index', 'sub',
+                3, 'index'); // adds to stack [dxa2 dxb2]
+              charstring.push(8, 4, 'roll', 'drop', 'drop', 'drop', 'drop');
+              charstring.push(escape == 1 ? 'hstem' : 'vstem');
+              continue;
+            }
           }
 
           command = charStringDictionary['12'][escape];
@@ -3205,9 +3217,12 @@ CFF.prototype = {
     'rrcurveto': 8,
     'callsubr': 10,
     'return': 11,
+    'add': [12, 10],
     'sub': [12, 11],
     'div': [12, 12],
     'exch': [12, 28],
+    'index': [12, 29],
+    'roll': [12, 30],
     'flex': [12, 35],
     'drop' : [12, 18],
     'endchar': 14,
